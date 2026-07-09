@@ -30,10 +30,11 @@ export default function RiskMapPage() {
     return () => { active = false }
   }, [filters])
 
+  const priorityHotspots = riskData.filter((item) => item.riskLevel === 'critical' || item.riskLevel === 'attention').length
   const mapMetrics = [
-    { icon: <MapPinned className="size-5" />, title: 'District Boundaries', value: '627', context: 'West Java subdistricts' },
-    { icon: <Route className="size-5" />, title: 'Risk Signal Flows', value: '7', context: 'Directional pathways' },
-    { icon: <RadioTower className="size-5" />, title: 'Priority Hotspots', value: '5', context: 'Active monitoring nodes' },
+    { icon: <MapPinned className="size-5" />, title: 'District Records', value: isLoading ? '…' : riskData.length.toLocaleString(), context: 'Aggregated by data-science API' },
+    { icon: <Route className="size-5" />, title: 'Risk Signal Flows', value: '7', context: 'Directional analytic overlays' },
+    { icon: <RadioTower className="size-5" />, title: 'Priority Hotspots', value: isLoading ? '…' : priorityHotspots.toLocaleString(), context: 'Attention + critical bands' },
     { icon: <BarChart3 className="size-5" />, title: 'Spatial Layers', value: '3', context: 'Risk, heat, flow' },
   ]
 
@@ -50,7 +51,7 @@ export default function RiskMapPage() {
       </section>
 
       <section className="space-y-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="section-title">Spatial flow intelligence</h2><p className="section-description">Switch between choropleth risk, hotspot heat, and directional flow intelligence. Click districts and flow paths for details.</p></div><div className="flex items-center gap-2"><StatusBadge status="monitoring"/><span className="text-xs text-muted-foreground">{isLoading ? 'Syncing API…' : riskData.length ? `${riskData.length} API records` : 'Illustrative fallback layer'}</span></div></div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="section-title">Spatial flow intelligence</h2><p className="section-description">Switch between choropleth risk, hotspot heat, and directional flow intelligence. Click districts and flow paths for details.</p></div><div className="flex items-center gap-2"><StatusBadge status="monitoring"/><span className="text-xs text-muted-foreground">{isLoading ? 'Syncing data-science API…' : riskData.length ? `${riskData.length} aggregated district records · ${riskData[0]?.source ?? 'source labelled in API'}` : 'No district aggregation available'}</span></div></div>
         <RiskFlowMap riskData={riskData} />
       </section>
 

@@ -267,7 +267,7 @@ def _call_llm(full_prompt: str) -> str:
         try:
             # SDK terbaru: gunakan 'config' (bukan 'generation_config')
             response = client.models.generate_content(
-                model="models/gemma-3-27b-it",
+                model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite"),
                 contents=full_prompt,
                 config={
                     "temperature": 0.25,
@@ -277,7 +277,7 @@ def _call_llm(full_prompt: str) -> str:
         except TypeError:
             # Fallback untuk kompatibilitas: panggil tanpa config
             response = client.models.generate_content(
-                model="models/gemma-3-27b-it",
+                model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite"),
                 contents=full_prompt,
             )
         return response.text

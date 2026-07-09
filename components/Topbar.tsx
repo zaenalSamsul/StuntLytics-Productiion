@@ -20,6 +20,7 @@ const pageNames: Record<string, string> = {
   '/explorer': 'Data Explorer',
   '/correlation': 'Factor Analysis',
   '/prediction': 'Family Screening',
+  '/data-science': 'Data Science Engine',
   '/insights': 'Health Insights',
   '/platform': 'Platform',
   '/settings': 'Settings',

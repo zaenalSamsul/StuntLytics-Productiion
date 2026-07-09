@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "python scripts/dev-full.py",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -11,7 +11,16 @@
     "fix:routes": "node scripts/cleanup-legacy-routes.mjs && node scripts/validate-routes.mjs",
     "predev": "node scripts/cleanup-legacy-routes.mjs && node scripts/validate-routes.mjs",
     "prebuild": "node scripts/cleanup-legacy-routes.mjs && node scripts/validate-routes.mjs",
-    "prestart": "node scripts/validate-routes.mjs"
+    "prestart": "node scripts/validate-routes.mjs",
+    "dev:web": "next dev",
+    "dev:ds": "python -m uvicorn ds_api.main:app --reload --host 127.0.0.1 --port 8000",
+    "dev:full": "python scripts/dev-full.py",
+    "health:ds": "python -c \"import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health').read().decode())\"",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down",
+    "docker:reset": "docker compose down -v --remove-orphans",
+    "docker:logs": "docker compose logs -f --tail=200",
+    "ingest:dry-run": "python scripts/ingest_elasticsearch.py --dry-run"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

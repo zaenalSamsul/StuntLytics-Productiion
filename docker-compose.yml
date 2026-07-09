@@ -1,0 +1,118 @@
+name: stuntlytics
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_VERSION:-8.19.16}
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      xpack.security.enrollment.enabled: "false"
+      bootstrap.memory_lock: "true"
+      ES_JAVA_OPTS: ${ES_JAVA_OPTS:--Xms1g -Xmx1g}
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "${ES_PORT:-9200}:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+    networks: [stuntlytics]
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${ELASTIC_VERSION:-8.19.16}
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      SERVER_NAME: stuntlytics-kibana
+    ports:
+      - "${KIBANA_PORT:-5601}:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5601/api/status >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 30
+      start_period: 45s
+    restart: unless-stopped
+    networks: [stuntlytics]
+
+  data-importer:
+    build:
+      context: .
+      dockerfile: docker/importer/Dockerfile
+    environment:
+      ES_URL: http://elasticsearch:9200
+      DATA_ARCHIVE: /data/Data.zip
+      STUNTING_INDEX: ${STUNTING_INDEX:-stunting-data}
+      NUTRITION_INDEX: ${NUTRITION_INDEX:-jabar-tenaga-gizi}
+      VILLAGE_CHILD_INDEX: ${VILLAGE_CHILD_INDEX:-jabar-balita-desa}
+      MODEL_SAMPLE_INDEX: ${MODEL_SAMPLE_INDEX:-stunting-model-sample}
+      INGEST_CHUNK_SIZE: ${INGEST_CHUNK_SIZE:-2000}
+      INGEST_INCLUDE_LEGACY_SAMPLE: ${INGEST_INCLUDE_LEGACY_SAMPLE:-true}
+      INGEST_RECREATE_ON_CHANGE: ${INGEST_RECREATE_ON_CHANGE:-true}
+      INGEST_FORCE: ${INGEST_FORCE:-false}
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: "no"
+    networks: [stuntlytics]
+
+  ds-api:
+    build:
+      context: .
+      dockerfile: docker/ds-api/Dockerfile
+    environment:
+      DS_DATA_MODE: elasticsearch
+      ES_URL: http://elasticsearch:9200
+      STUNTING_INDEX: ${STUNTING_INDEX:-stunting-data}
+      NUTRITION_INDEX: ${NUTRITION_INDEX:-jabar-tenaga-gizi}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash-lite}
+      GEMINI_MAX_OUTPUT_TOKENS: ${GEMINI_MAX_OUTPUT_TOKENS:-4096}
+      GEMINI_TEMPERATURE: ${GEMINI_TEMPERATURE:-0.25}
+      GEMINI_RETRIES: ${GEMINI_RETRIES:-1}
+    ports:
+      - "${DS_API_PORT:-8000}:8000"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      data-importer:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5).read()"]
+      interval: 10s
+      timeout: 8s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+    networks: [stuntlytics]
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      STUNTLYTICS_DS_API_URL: http://ds-api:8000
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      ds-api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [stuntlytics]
+
+volumes:
+  elasticsearch-data:
+
+networks:
+  stuntlytics:
+    driver: bridge

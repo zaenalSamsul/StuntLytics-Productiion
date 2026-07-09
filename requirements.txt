@@ -1,12 +1,24 @@
-streamlit
+# Data-science engine
 pandas
 numpy
-pydeck
-matplotlib>=3.8
 joblib
 scikit-learn==1.6.1
-plotly
-elasticsearch
+
+# Integrated API service
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.8
 python-dotenv
-# openai
-google-genai
+requests
+
+# Original Streamlit implementation kept for research/reference
+streamlit
+pydeck
+matplotlib>=3.8
+plotly
+elasticsearch>=8.19,<9
+
+# Optional free-tier grounded narrative layer
+# Gemini 2.5 Flash-Lite is the default; the API works without a key and falls back
+# to deterministic evidence summaries.
+google-genai>=1.0,<2

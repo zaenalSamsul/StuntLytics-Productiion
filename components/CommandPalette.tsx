@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Activity, Bell, BrainCircuit, Command, Database, Map, Search, ShieldAlert, TrendingUp, Users, X } from 'lucide-react'
+import { Activity, Bell, BrainCircuit, Command, Database, FlaskConical, Map, Search, ShieldAlert, TrendingUp, Users, X } from 'lucide-react'
 
 const commands = [
   { label: 'Open dashboard', keywords: 'overview home health', href: '/dashboard', icon: Activity },
@@ -12,6 +12,7 @@ const commands = [
   { label: 'Explore data', keywords: 'records dataset table', href: '/explorer', icon: Database },
   { label: 'Analyze correlations', keywords: 'factors relationship trend', href: '/correlation', icon: TrendingUp },
   { label: 'Assess family risk', keywords: 'prediction screening', href: '/prediction', icon: Users },
+  { label: 'Inspect data science engine', keywords: 'model pipeline machine learning api provenance', href: '/data-science', icon: FlaskConical },
   { label: 'Open health insights', keywords: 'evidence analysis recommendation support', href: '/insights', icon: BrainCircuit },
 ]
 

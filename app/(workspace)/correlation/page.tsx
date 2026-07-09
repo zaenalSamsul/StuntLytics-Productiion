@@ -1,152 +1,99 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { ArrowDownRight, ArrowUpRight, BarChart3, Download, Microscope, SearchCheck } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { AlertTriangle, BarChart3, Download, FlaskConical, RefreshCw, ShieldCheck, TrendingDown, TrendingUp } from 'lucide-react'
+import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { DataServiceUnavailable } from '@/components/DataServiceUnavailable'
+import { DataSourceBadge } from '@/components/DataSourceBadge'
 import { PageHeader } from '@/components/PageHeader'
-import { ChartWrapper } from '@/components/ChartWrapper'
-import { Alert } from '@/components/Alert'
-import { useToast } from '@/components/ToastProvider'
+import { Skeleton } from '@/components/Skeleton'
+import { CorrelationResponse, dashboardApi } from '@/lib/api'
 import { downloadTextFile, toCsv } from '@/lib/download'
 
-const factors = [
-  { factor: 'Water quality pressure', value: 0.65, domain: 'WASH', interpretation: 'Higher pressure appears alongside higher prevalence.' },
-  { factor: 'Sanitation pressure', value: 0.72, domain: 'WASH', interpretation: 'The strongest positive association in this review set.' },
-  { factor: 'Healthcare worker density', value: -0.58, domain: 'Services', interpretation: 'Higher workforce availability appears alongside lower prevalence.' },
-  { factor: 'Immunization continuity', value: -0.81, domain: 'Services', interpretation: 'The strongest inverse association in this review set.' },
-  { factor: 'Nutrition program continuity', value: -0.76, domain: 'Nutrition', interpretation: 'More continuous coverage appears alongside lower prevalence.' },
-  { factor: 'Caregiver education proxy', value: -0.64, domain: 'Household', interpretation: 'Higher education proxy values appear alongside lower prevalence.' },
-]
-
-const trendAnalysis = [
-  { month: 'Jan', sanitationPressure: 48, serviceCoverage: 68, nutritionContinuity: 52 },
-  { month: 'Feb', sanitationPressure: 46, serviceCoverage: 70, nutritionContinuity: 55 },
-  { month: 'Mar', sanitationPressure: 44, serviceCoverage: 72, nutritionContinuity: 58 },
-  { month: 'Apr', sanitationPressure: 42, serviceCoverage: 75, nutritionContinuity: 60 },
-  { month: 'May', sanitationPressure: 40, serviceCoverage: 78, nutritionContinuity: 63 },
-  { month: 'Jun', sanitationPressure: 38, serviceCoverage: 80, nutritionContinuity: 65 },
-]
-
-const reviewQuestions = [
-  { title: 'Validate service continuity', text: 'Compare immunization drop-out and nutrition follow-up gaps in the highest-priority districts.' },
-  { title: 'Inspect WASH pressure', text: 'Review whether sanitation and water access pressure clusters overlap with persistent child-growth risk.' },
-  { title: 'Check staffing context', text: 'Compare workforce density with travel time, caseload, and referral completion before deciding deployment changes.' },
-  { title: 'Triangulate household factors', text: 'Use field verification and local program data before treating education proxies as intervention targets.' },
-]
-
 export default function CorrelationPage() {
-  const [view, setView] = useState<'association' | 'magnitude'>('association')
-  const { notify } = useToast()
+  const [data, setData] = useState<CorrelationResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [mode, setMode] = useState<'signed' | 'magnitude'>('signed')
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  const chartData = useMemo(
-    () => factors.map((item) => ({ factor: item.factor.replace(' pressure', ''), value: view === 'magnitude' ? Math.abs(item.value) : item.value })),
-    [view],
-  )
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    setError(null)
+    dashboardApi.getCorrelationAnalysis({}).then((response) => {
+      if (active) setData(response)
+    }).catch((reason) => {
+      if (active) setError(reason instanceof Error ? reason.message : 'Unable to load factor analysis')
+    }).finally(() => {
+      if (active) setLoading(false)
+    })
+    return () => { active = false }
+  }, [refreshKey])
+
+  const factors = useMemo(() => (data?.factors ?? []).map((factor) => ({
+    ...factor,
+    displayValue: mode === 'magnitude' ? factor.magnitude : factor.coefficient,
+  })), [data?.factors, mode])
 
   const exportFactors = () => {
-    downloadTextFile(
-      'stuntlytics-factor-review.csv',
-      toCsv(factors.map((item) => ({ ...item, coefficient: item.value }))),
-      'text/csv;charset=utf-8',
-    )
-    notify({ tone: 'success', title: 'Factor review exported', message: 'The CSV includes coefficients, domains, and interpretation notes.' })
+    if (!data?.factors.length) return
+    downloadTextFile('stuntlytics-factor-analysis.csv', toCsv(data.factors.map((factor) => ({ ...factor }))), 'text/csv;charset=utf-8')
   }
+
+  const strongest = data?.factors[0]
+  const inverse = data?.factors.filter((factor) => factor.coefficient < 0).sort((a, b) => Math.abs(b.coefficient) - Math.abs(a.coefficient))[0]
+  const positive = data?.factors.filter((factor) => factor.coefficient > 0).sort((a, b) => Math.abs(b.coefficient) - Math.abs(a.coefficient))[0]
 
   return (
     <div className="space-y-6">
       <PageHeader
         icon={<BarChart3 className="size-5" />}
-        eyebrow="Determinant exploration"
-        title="Factor & Trend Review"
-        description="Explore observed associations between child-growth outcomes and program determinants without treating correlation as proof of causation."
+        eyebrow="Data-science association review"
+        title="Factor & Trend Analysis"
+        description="Compute monthly stunting trends and Pearson correlations from the numeric sample exposed by the original StuntLytics analytics engine."
       >
-        <button type="button" onClick={exportFactors} className="btn-secondary">
-          <Download className="size-4" /> Export factors
-        </button>
+        <button type="button" onClick={() => setRefreshKey((value) => value + 1)} className="btn-secondary"><RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} /> Refresh</button>
+        <button type="button" onClick={exportFactors} disabled={!data?.factors.length} className="btn-primary disabled:opacity-50"><Download className="size-4" /> Export factors</button>
       </PageHeader>
 
+      {error && <DataServiceUnavailable message={error} />}
+
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <article className="kpi-card">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary"><ArrowDownRight className="size-5" /></span>
-          <div><p className="text-xs font-semibold text-muted-foreground">Strongest inverse signal</p><p className="mt-1 text-2xl font-extrabold tracking-tight text-foreground">−0.81</p><p className="mt-1 text-xs text-text-secondary">Immunization continuity</p></div>
+        <article className="kpi-card"><div className="flex items-start justify-between"><div><p className="text-[10px] font-extrabold uppercase tracking-[.1em] text-muted-foreground">Target field</p><p className="mt-2 text-lg font-extrabold tracking-[-.03em] text-foreground">{data?.target ?? '—'}</p></div><span className="kpi-icon bg-primary/10 text-primary"><FlaskConical className="size-5" /></span></div><p className="mt-3 text-[11px] leading-5 text-muted-foreground">Correlation target selected from available numeric fields.</p></article>
+        <article className="kpi-card"><div className="flex items-start justify-between"><div><p className="text-[10px] font-extrabold uppercase tracking-[.1em] text-muted-foreground">Sample size</p><p className="mt-2 text-[26px] font-extrabold tracking-[-.04em] text-foreground">{data?.sampleSize.toLocaleString() ?? '—'}</p></div><span className="kpi-icon bg-secondary/10 text-secondary"><ShieldCheck className="size-5" /></span></div><p className="mt-3 text-[11px] leading-5 text-muted-foreground">Numeric rows used after active source filtering.</p></article>
+        <article className="kpi-card"><div className="flex items-start justify-between"><div><p className="text-[10px] font-extrabold uppercase tracking-[.1em] text-muted-foreground">Strongest positive</p><p className="mt-2 text-lg font-extrabold tracking-[-.03em] text-foreground">{positive ? positive.coefficient.toFixed(2) : '—'}</p></div><span className="kpi-icon bg-danger/10 text-danger"><TrendingUp className="size-5" /></span></div><p className="mt-3 truncate text-[11px] font-semibold text-muted-foreground">{positive?.factor ?? 'No positive association'}</p></article>
+        <article className="kpi-card"><div className="flex items-start justify-between"><div><p className="text-[10px] font-extrabold uppercase tracking-[.1em] text-muted-foreground">Strongest inverse</p><p className="mt-2 text-lg font-extrabold tracking-[-.03em] text-foreground">{inverse ? inverse.coefficient.toFixed(2) : '—'}</p></div><span className="kpi-icon bg-success/10 text-success"><TrendingDown className="size-5" /></span></div><p className="mt-3 truncate text-[11px] font-semibold text-muted-foreground">{inverse?.factor ?? 'No inverse association'}</p></article>
+      </section>
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div><h2 className="section-title">Computed analytical outputs</h2><p className="section-description">Association strength and monthly trend are recalculated from the active data source.</p></div>
+        <DataSourceBadge source={data?.source} />
+      </div>
+
+      <section className="grid gap-5 xl:grid-cols-12">
+        <article className="clinical-card overflow-hidden xl:col-span-7">
+          <div className="flex flex-col gap-3 border-b border-border-soft px-5 py-4 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="section-title">Factor association</h2><p className="section-description">Top numeric associations with {data?.target ?? 'the selected target'}.</p></div><div className="inline-flex rounded-xl border border-border bg-muted p-1"><button type="button" onClick={() => setMode('signed')} className={`rounded-lg px-3 py-1.5 text-[10px] font-extrabold ${mode === 'signed' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground'}`}>Direction</button><button type="button" onClick={() => setMode('magnitude')} className={`rounded-lg px-3 py-1.5 text-[10px] font-extrabold ${mode === 'magnitude' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground'}`}>Magnitude</button></div></div>
+          <div className="h-[390px] p-4 sm:p-5">
+            {loading ? <Skeleton className="h-full w-full" /> : factors.length ? <ResponsiveContainer width="100%" height="100%"><BarChart data={factors} layout="vertical" margin={{ top: 8, right: 20, left: 30, bottom: 0 }}><CartesianGrid horizontal={false} stroke="#edf1f6"/><XAxis type="number" domain={mode === 'signed' ? [-1, 1] : [0, 1]} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#7b8799' }}/><YAxis type="category" dataKey="factor" width={145} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#667085' }}/><Tooltip formatter={(value) => Number(value).toFixed(3)} contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }}/><Bar dataKey="displayValue" radius={[0, 6, 6, 0]}>{factors.map((entry) => <Cell key={entry.field} fill={entry.coefficient >= 0 ? '#d74646' : '#1d9b67'} />)}</Bar></BarChart></ResponsiveContainer> : <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No sufficient numeric correlation sample is available.</div>}
+          </div>
         </article>
-        <article className="kpi-card">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-warning/10 text-warning"><ArrowUpRight className="size-5" /></span>
-          <div><p className="text-xs font-semibold text-muted-foreground">Strongest positive signal</p><p className="mt-1 text-2xl font-extrabold tracking-tight text-foreground">+0.72</p><p className="mt-1 text-xs text-text-secondary">Sanitation pressure</p></div>
-        </article>
-        <article className="kpi-card">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-secondary/10 text-secondary"><Microscope className="size-5" /></span>
-          <div><p className="text-xs font-semibold text-muted-foreground">Factors reviewed</p><p className="mt-1 text-2xl font-extrabold tracking-tight text-foreground">6</p><p className="mt-1 text-xs text-text-secondary">Across 4 program domains</p></div>
-        </article>
-        <article className="kpi-card">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-info/10 text-info"><SearchCheck className="size-5" /></span>
-          <div><p className="text-xs font-semibold text-muted-foreground">Decision rule</p><p className="mt-1 text-lg font-extrabold tracking-tight text-foreground">Verify first</p><p className="mt-1 text-xs text-text-secondary">Field review before action</p></div>
+
+        <article className="clinical-card overflow-hidden xl:col-span-5">
+          <div className="border-b border-border-soft px-5 py-4"><h2 className="section-title">Monthly stunting trend</h2><p className="section-description">Proportion computed for each available month.</p></div>
+          <div className="h-[390px] p-4 sm:p-5">
+            {data?.trend.length ? <ResponsiveContainer width="100%" height="100%"><LineChart data={data.trend} margin={{ top: 10, right: 15, left: -10, bottom: 5 }}><CartesianGrid vertical={false} stroke="#edf1f6"/><XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#7b8799' }}/><YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#7b8799' }}/><Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }}/><Line type="monotone" dataKey="prevalence" stroke="#2b6cf6" strokeWidth={2.6} dot={{ r: 3 }} name="Stunting %" /></LineChart></ResponsiveContainer> : <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No monthly trend available.</div>}
+          </div>
         </article>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.45fr_.85fr]">
-        <div className="clinical-card overflow-hidden">
-          <div className="flex flex-col gap-3 border-b border-border-soft p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-            <div>
-              <h2 className="text-base font-bold text-foreground sm:text-lg">Association profile</h2>
-              <p className="mt-1 text-sm text-text-secondary">Coefficient direction and relative strength from the current analytical review set.</p>
-            </div>
-            <div className="inline-flex rounded-xl border border-border bg-muted/55 p-1">
-              <button type="button" onClick={() => setView('association')} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${view === 'association' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Direction</button>
-              <button type="button" onClick={() => setView('magnitude')} className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${view === 'magnitude' ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Magnitude</button>
-            </div>
-          </div>
-          <div className="p-1 sm:p-2">
-            <ChartWrapper type="bar" data={chartData} height={360} className="border-0 bg-transparent shadow-none" />
-          </div>
-        </div>
-
-        <aside className="clinical-card p-5 sm:p-6">
-          <div className="mb-5">
-            <p className="text-[10px] font-extrabold uppercase tracking-[.13em] text-secondary">Interpretation discipline</p>
-            <h2 className="mt-1 text-lg font-bold text-foreground">What this view can support</h2>
-          </div>
-          <div className="space-y-3">
-            {factors.slice(0, 4).map((item) => (
-              <div key={item.factor} className="rounded-xl border border-border-soft bg-muted/35 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-bold text-foreground">{item.factor}</p>
-                  <span className={`rounded-lg px-2 py-1 text-[11px] font-extrabold ${item.value < 0 ? 'bg-secondary/10 text-secondary' : 'bg-warning/10 text-warning'}`}>{item.value > 0 ? '+' : ''}{item.value.toFixed(2)}</span>
-                </div>
-                <p className="mt-2 text-xs leading-5 text-text-secondary">{item.interpretation}</p>
-              </div>
-            ))}
-          </div>
-        </aside>
+      <section className="grid gap-5 xl:grid-cols-12">
+        <article className="clinical-card p-5 sm:p-6 xl:col-span-7">
+          <div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><ShieldCheck className="size-5" /></span><div><h2 className="text-sm font-extrabold text-foreground">Method and interpretation</h2><p className="mt-1 text-xs leading-6 text-text-secondary">{data?.method ?? 'Pearson correlation on numeric sample'}. Signed values show direction; magnitude shows strength. The target and available fields depend on the source dataset.</p></div></div>
+          {strongest && <div className="mt-5 rounded-xl border border-border bg-muted/50 p-4"><p className="text-[10px] font-extrabold uppercase tracking-[.1em] text-muted-foreground">Strongest current association</p><div className="mt-2 flex flex-wrap items-baseline gap-2"><span className="text-lg font-extrabold text-foreground">{strongest.factor}</span><span className={`text-sm font-extrabold ${strongest.coefficient >= 0 ? 'text-danger' : 'text-success'}`}>{strongest.coefficient >= 0 ? '+' : ''}{strongest.coefficient.toFixed(3)}</span></div></div>}
+        </article>
+        <article className="rounded-2xl border border-warning/20 bg-warning/5 p-5 sm:p-6 xl:col-span-5"><div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 size-5 shrink-0 text-warning"/><div><h2 className="text-sm font-extrabold text-foreground">Association is not causation</h2><p className="mt-2 text-xs leading-6 text-text-secondary">{data?.guardrail ?? 'Review data quality and domain context before action.'} Correlations may reflect confounding, measurement patterns, selection bias, or shared determinants.</p></div></div></article>
       </section>
-
-      <ChartWrapper
-        type="line"
-        title="Program context over six review periods"
-        subtitle="Illustrative trend view for pressure and service-continuity indicators; values should be replaced by validated longitudinal data."
-        data={trendAnalysis}
-        height={340}
-      />
-
-      <section>
-        <div className="mb-4">
-          <p className="text-[10px] font-extrabold uppercase tracking-[.13em] text-primary">From analysis to field review</p>
-          <h2 className="mt-1 text-xl font-extrabold tracking-tight text-foreground">Questions worth investigating next</h2>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          {reviewQuestions.map((item, index) => (
-            <article key={item.title} className="clinical-card flex gap-4 p-5">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-xs font-extrabold text-primary">0{index + 1}</span>
-              <div><h3 className="text-sm font-bold text-foreground">{item.title}</h3><p className="mt-1.5 text-sm leading-6 text-text-secondary">{item.text}</p></div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <Alert
-        type="info"
-        title="Association is not causation"
-        message="Use this page to prioritize questions and verification. Intervention decisions should combine validated data, local context, field review, and qualified health-program expertise."
-      />
     </div>
   )
 }

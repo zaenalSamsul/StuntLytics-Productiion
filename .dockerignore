@@ -1,0 +1,19 @@
+.git
+.github
+.next
+node_modules
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+*.log
+.env
+.env.local
+.DS_Store
+geojson
+pages
+utils
+app.py
+Data
+# Data.zip is copied explicitly into importer image.

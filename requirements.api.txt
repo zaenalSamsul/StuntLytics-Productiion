@@ -1,0 +1,11 @@
+pandas
+numpy
+joblib
+scikit-learn==1.6.1
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.8
+python-dotenv
+requests
+elasticsearch>=8.19,<9
+google-genai>=1.0,<2

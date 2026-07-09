@@ -1,79 +1,148 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { ArrowDownAZ, Database, Download, Search, SlidersHorizontal } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Database, Download, Filter, RefreshCw, Search, SlidersHorizontal } from 'lucide-react'
+import { DataServiceUnavailable } from '@/components/DataServiceUnavailable'
+import { DataSourceBadge } from '@/components/DataSourceBadge'
 import { PageHeader } from '@/components/PageHeader'
-import { StatusBadge } from '@/components/StatusBadge'
+import { Skeleton } from '@/components/Skeleton'
+import { dashboardApi, ExplorerResponse } from '@/lib/api'
 import { downloadTextFile, toCsv } from '@/lib/download'
-import { useToast } from '@/components/ToastProvider'
 
-const explorerData = [
-  { id: 1, regency: 'Kota Bandung', district: 'Andir', children: 1024, stunting: 245, prevalence: 23.9, coverage: 81.2 },
-  { id: 2, regency: 'Kab. Bandung', district: 'Cileunyi', children: 856, stunting: 187, prevalence: 21.8, coverage: 84.5 },
-  { id: 3, regency: 'Kab. Indramayu', district: 'Kandanghaur', children: 712, stunting: 248, prevalence: 34.8, coverage: 66.2 },
-  { id: 4, regency: 'Kab. Garut', district: 'Cisompet', children: 648, stunting: 202, prevalence: 31.2, coverage: 69.4 },
-  { id: 5, regency: 'Kab. Cianjur', district: 'Cibeber', children: 704, stunting: 203, prevalence: 28.9, coverage: 72.1 },
-  { id: 6, regency: 'Kab. Subang', district: 'Pusakanagara', children: 936, stunting: 252, prevalence: 26.9, coverage: 75.6 },
-  { id: 7, regency: 'Kab. Bogor', district: 'Leuwiliang', children: 1186, stunting: 298, prevalence: 25.1, coverage: 79.3 },
-  { id: 8, regency: 'Kota Cirebon', district: 'Harjamukti', children: 598, stunting: 137, prevalence: 22.9, coverage: 82.4 },
-]
-
-type SortMode = 'default' | 'risk-desc' | 'name'
+const educationOptions = ['', 'Tidak Sekolah', 'SD', 'SMP', 'SMA', 'Diploma', 'S1', 'S2/S3']
 
 export default function ExplorerPage() {
-  const [query, setQuery] = useState('')
-  const [sortMode, setSortMode] = useState<SortMode>('default')
-  const [view, setView] = useState<'district' | 'regency'>('district')
-  const { notify } = useToast()
+  const [data, setData] = useState<ExplorerResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [education, setEducation] = useState('')
+  const [asi, setAsi] = useState('Semua')
+  const [water, setWater] = useState('Semua')
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  const rows = useMemo(() => {
-    const filtered = explorerData.filter((row) => `${row.regency} ${row.district}`.toLowerCase().includes(query.toLowerCase()))
-    if (sortMode === 'risk-desc') return [...filtered].sort((a, b) => b.prevalence - a.prevalence)
-    if (sortMode === 'name') return [...filtered].sort((a, b) => a.district.localeCompare(b.district))
-    return filtered
-  }, [query, sortMode])
+  useEffect(() => {
+    let active = true
+    setLoading(true)
+    setError(null)
+    dashboardApi.getExplorerData({}, {
+      pendidikanIbu: education || undefined,
+      asiEksklusif: asi,
+      aksesAir: water,
+      limit: 500,
+    }).then((response) => {
+      if (active) setData(response)
+    }).catch((reason) => {
+      if (active) setError(reason instanceof Error ? reason.message : 'Unable to load explorer data')
+    }).finally(() => {
+      if (active) setLoading(false)
+    })
+    return () => { active = false }
+  }, [education, asi, water, refreshKey])
+
+  const records = useMemo(() => {
+    const source = data?.records ?? []
+    const term = search.trim().toLowerCase()
+    if (!term) return source
+    return source.filter((row) => Object.values(row).some((value) => String(value ?? '').toLowerCase().includes(term)))
+  }, [data?.records, search])
+
+  const headers = useMemo(() => records[0] ? Object.keys(records[0]) : [], [records])
 
   const exportCsv = () => {
-    downloadTextFile('stuntlytics-regional-data.csv', toCsv(rows.map(({ id: _id, ...row }) => row)), 'text/csv;charset=utf-8')
-    notify({ tone: 'success', title: 'CSV exported', message: `${rows.length} visible records were prepared for download.` })
+    const csv = toCsv(records as Array<Record<string, string | number | boolean | null | undefined>>)
+    downloadTextFile(`stuntlytics-explorer-${new Date().toISOString().slice(0, 10)}.csv`, csv, 'text/csv;charset=utf-8')
   }
 
-  return <div className="space-y-6">
-    <PageHeader icon={<Database className="size-5" />} eyebrow="Regional records" title="Data Explorer" description="Search, rank, and export district-level child growth program indicators for operational review.">
-      <button type="button" onClick={exportCsv} className="btn-primary"><Download className="size-4"/> Export CSV</button>
-    </PageHeader>
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        icon={<Database className="size-5" />}
+        eyebrow="Data-science drill-down"
+        title="Data Explorer"
+        description="Inspect the record-level fields used by the original StuntLytics analytics pipeline, apply maternal and household filters, and export the visible evidence set."
+      >
+        <button type="button" onClick={() => setRefreshKey((value) => value + 1)} className="btn-secondary"><RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} /> Refresh</button>
+        <button type="button" onClick={exportCsv} disabled={!records.length} className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"><Download className="size-4" /> Export CSV</button>
+      </PageHeader>
 
-    <section className="grid gap-4 sm:grid-cols-3">
-      <div className="kpi-card"><p className="text-[10px] font-extrabold uppercase tracking-[.09em] text-muted-foreground">Visible children</p><p className="mt-2 text-2xl font-extrabold text-foreground">{rows.reduce((sum,row)=>sum+row.children,0).toLocaleString()}</p><p className="mt-1 text-[11px] text-muted-foreground">Across current search results</p></div>
-      <div className="kpi-card"><p className="text-[10px] font-extrabold uppercase tracking-[.09em] text-muted-foreground">Mean prevalence</p><p className="mt-2 text-2xl font-extrabold text-foreground">{(rows.reduce((sum,row)=>sum+row.prevalence,0)/Math.max(rows.length,1)).toFixed(1)}%</p><p className="mt-1 text-[11px] text-muted-foreground">Descriptive, not diagnostic</p></div>
-      <div className="kpi-card"><p className="text-[10px] font-extrabold uppercase tracking-[.09em] text-muted-foreground">High-priority areas</p><p className="mt-2 text-2xl font-extrabold text-danger">{rows.filter((row)=>row.prevalence>=30).length}</p><p className="mt-1 text-[11px] text-muted-foreground">At or above 30% in demo data</p></div>
-    </section>
+      {error && <DataServiceUnavailable message={error} />}
 
-    <section className="clinical-card overflow-hidden">
-      <div className="grid gap-3 border-b border-border-soft p-4 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-center lg:px-5">
-        <label className="relative max-w-2xl"><span className="sr-only">Search regional data</span><Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-text-soft"/><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search regency or district…" className="premium-input w-full pl-10"/></label>
-        <div className="flex rounded-xl border border-border bg-muted/60 p-1">
-          {(['district','regency'] as const).map((item)=><button key={item} type="button" onClick={()=>setView(item)} className={`min-h-8 rounded-lg px-3 text-[11px] font-bold capitalize transition ${view===item?'bg-white text-primary shadow-sm dark:bg-card':'text-muted-foreground'}`}>{item}</button>)}
+      <section className="clinical-card p-4 sm:p-5">
+        <div className="grid gap-3 xl:grid-cols-[minmax(260px,1fr)_repeat(3,minmax(150px,220px))]">
+          <label className="relative block">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} className="premium-input pl-9" placeholder="Search any visible record…" />
+          </label>
+          <label>
+            <span className="sr-only">Maternal education</span>
+            <select value={education} onChange={(event) => setEducation(event.target.value)} className="premium-input">
+              <option value="">All education levels</option>
+              {educationOptions.filter(Boolean).map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </label>
+          <label>
+            <span className="sr-only">Exclusive breastfeeding</span>
+            <select value={asi} onChange={(event) => setAsi(event.target.value)} className="premium-input">
+              <option value="Semua">All breastfeeding records</option>
+              <option value="Ya">Exclusive breastfeeding: Yes</option>
+              <option value="Tidak">Exclusive breastfeeding: No</option>
+            </select>
+          </label>
+          <label>
+            <span className="sr-only">Water access</span>
+            <select value={water} onChange={(event) => setWater(event.target.value)} className="premium-input">
+              <option value="Semua">All water-access records</option>
+              <option value="Ada">Safe water: Available</option>
+              <option value="Tidak Ada">Safe water: Not available</option>
+            </select>
+          </label>
         </div>
-        <div className="flex items-center gap-2">
-          <SlidersHorizontal className="size-4 text-muted-foreground"/>
-          <select value={sortMode} onChange={(e)=>setSortMode(e.target.value as SortMode)} className="premium-input min-h-9 py-0 text-xs">
-            <option value="default">Default order</option><option value="risk-desc">High risk first</option><option value="name">District A–Z</option>
-          </select>
+        <div className="mt-4 flex flex-col gap-3 border-t border-border-soft pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5"><Filter className="size-3.5" /> {records.length.toLocaleString()} visible records</span>
+            <span className="text-border">•</span>
+            <span>{data?.count.toLocaleString() ?? '—'} records after backend filters</span>
+          </div>
+          <DataSourceBadge source={data?.source} />
         </div>
-      </div>
+      </section>
 
-      <div className="overflow-x-auto">
-        <table className="premium-table min-w-[820px]">
-          <thead><tr><th>Regency</th><th>District</th><th className="text-right">Children</th><th className="text-right">Stunting cases</th><th>Prevalence</th><th>Service coverage</th><th>Status</th></tr></thead>
-          <tbody>{rows.map((row) => {
-            const status = row.prevalence >= 33 ? 'critical' : row.prevalence >= 28 ? 'attention' : row.prevalence >= 24 ? 'monitoring' : 'stable'
-            return <tr key={row.id}><td className="font-bold text-foreground">{row.regency}</td><td className="text-text-secondary">{view==='regency'?'Aggregated view':row.district}</td><td className="text-right font-semibold tabular-nums text-foreground">{row.children.toLocaleString()}</td><td className="text-right font-semibold tabular-nums text-foreground">{row.stunting.toLocaleString()}</td><td><div className="flex items-center gap-2"><span className="w-11 font-extrabold tabular-nums text-foreground">{row.prevalence}%</span><div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full ${row.prevalence>=33?'bg-danger':row.prevalence>=28?'bg-warning':'bg-primary'}`} style={{width:`${Math.min(row.prevalence*2.4,100)}%`}}/></div></div></td><td><span className="font-bold text-secondary">{row.coverage}%</span></td><td><StatusBadge status={status}/></td></tr>
-          })}</tbody>
-        </table>
-      </div>
-      {rows.length===0 && <div className="p-10 text-center"><ArrowDownAZ className="mx-auto size-8 text-text-soft"/><p className="mt-3 text-sm font-bold text-foreground">No matching records</p><p className="mt-1 text-xs text-muted-foreground">Try another regency or district name.</p></div>}
-      <div className="flex flex-col gap-2 border-t border-border-soft px-5 py-3 text-[11px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between"><span>Showing {rows.length} of {explorerData.length} demo records</span><span>Updated · June 2026 monitoring cycle</span></div>
-    </section>
-  </div>
+      <section className="grid gap-5 xl:grid-cols-12">
+        <article className="clinical-card overflow-hidden xl:col-span-9">
+          <div className="flex items-center justify-between border-b border-border-soft px-5 py-4">
+            <div><h2 className="section-title">Record evidence</h2><p className="section-description">Sorted by the source pipeline; the fallback demo uses the same analytical field concepts.</p></div>
+            <SlidersHorizontal className="size-4 text-muted-foreground" />
+          </div>
+          <div className="max-h-[620px] overflow-auto">
+            {loading ? <div className="space-y-3 p-5">{Array.from({ length: 8 }).map((_, index) => <Skeleton key={index} className="h-10 w-full" />)}</div> : records.length ? <table className="premium-table min-w-[1080px]">
+              <thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead>
+              <tbody>{records.map((row, index) => <tr key={`${String(row['Kabupaten/Kota'] ?? '')}-${String(row.Kecamatan ?? '')}-${index}`}>{headers.map((header) => <td key={header} className={header === 'Status Stunting' ? 'font-bold text-foreground' : ''}>{String(row[header] ?? '—')}</td>)}</tr>)}</tbody>
+            </table> : <div className="p-12 text-center text-sm text-muted-foreground">No records match the current filters.</div>}
+          </div>
+        </article>
+
+        <aside className="space-y-5 xl:col-span-3">
+          <article className="clinical-card p-5">
+            <h2 className="section-title">Top record concentration</h2>
+            <p className="section-description">Five highest regional counts in the filtered evidence set.</p>
+            <div className="mt-5 space-y-3">
+              {(data?.topCounts ?? []).map((row, index) => {
+                const entries = Object.entries(row)
+                const label = String(entries.find(([, value]) => typeof value === 'string')?.[1] ?? `Region ${index + 1}`)
+                const value = Number(entries.find(([, item]) => typeof item === 'number')?.[1] ?? 0)
+                const max = Math.max(...(data?.topCounts ?? []).map((item) => Number(Object.values(item).find((candidate) => typeof candidate === 'number') ?? 0)), 1)
+                return <div key={`${label}-${index}`}><div className="flex items-center justify-between gap-3 text-[11px]"><span className="truncate font-bold text-text-secondary">{label}</span><span className="font-extrabold text-foreground">{value}</span></div><div className="mt-1.5 h-1.5 rounded-full bg-muted"><div className="h-full rounded-full bg-gradient-to-r from-primary to-secondary" style={{ width: `${Math.max(5, value / max * 100)}%` }} /></div></div>
+              })}
+            </div>
+          </article>
+
+          <article className="rounded-2xl border border-info/20 bg-info/5 p-5">
+            <h3 className="text-xs font-extrabold text-foreground">Evidence-use guardrail</h3>
+            <p className="mt-2 text-[11px] leading-5 text-text-secondary">Record-level exploration supports quality review and analysis. Do not infer individual diagnosis or causal effect from a filtered table alone.</p>
+          </article>
+        </aside>
+      </section>
+    </div>
+  )
 }

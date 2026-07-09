@@ -8,14 +8,17 @@ import {
   BadgeCheck,
   BarChart3,
   BellRing,
+  BrainCircuit,
   BookOpenCheck,
   CheckCircle2,
   ChevronRight,
   ClipboardCheck,
   Database,
   FileCheck2,
+  FlaskConical,
   HeartPulse,
   MapPinned,
+  Network,
   Menu,
   Search,
   ShieldCheck,
@@ -80,6 +83,7 @@ export default function LandingPage() {
     if (q.includes('data') || q.includes('explore') || q.includes('record')) return '/explorer'
     if (q.includes('factor') || q.includes('korelasi') || q.includes('determinant')) return '/correlation'
     if (q.includes('screen') || q.includes('family') || q.includes('keluarga')) return '/prediction'
+    if (q.includes('model') || q.includes('pipeline') || q.includes('machine learning') || q.includes('data science')) return '/data-science'
     if (q.includes('notif') || q.includes('alert')) return '/notifications'
     if (q.includes('audit') || q.includes('activity')) return '/activity'
     return '/dashboard'
@@ -99,6 +103,7 @@ export default function LandingPage() {
             <Link href="#platform" className="text-[11px] font-semibold text-slate-600 transition hover:text-foreground dark:text-text-secondary">Platform</Link>
             <Link href="#care" className="text-[11px] font-semibold text-slate-600 transition hover:text-foreground dark:text-text-secondary">For health teams</Link>
             <Link href="#workflow" className="text-[11px] font-semibold text-slate-600 transition hover:text-foreground dark:text-text-secondary">How it works</Link>
+            <Link href="/data-science" className="text-[11px] font-semibold text-slate-600 transition hover:text-foreground dark:text-text-secondary">Data science</Link>
             <Link href="/about" className="text-[11px] font-semibold text-slate-600 transition hover:text-foreground dark:text-text-secondary">Research context</Link>
           </div>
           <div className="hidden items-center gap-3 md:flex">
@@ -112,7 +117,7 @@ export default function LandingPage() {
         {menuOpen && (
           <div className="border-t border-black/[.06] bg-[#f7f8f6] px-5 py-4 dark:border-border dark:bg-card lg:hidden">
             <div className="space-y-1">
-              {[['Platform','#platform'],['For health teams','#care'],['How it works','#workflow'],['Research context','/about']].map(([label,href]) => (
+              {[['Platform','#platform'],['For health teams','#care'],['How it works','#workflow'],['Data science','/data-science'],['Research context','/about']].map(([label,href]) => (
                 <Link key={label} href={href} onClick={() => setMenuOpen(false)} className="block rounded-xl px-3 py-3 text-sm font-bold hover:bg-black/[.04] dark:hover:bg-muted">{label}</Link>
               ))}
             </div>
@@ -251,6 +256,32 @@ export default function LandingPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-[#111d2d] px-5 py-24 text-white sm:px-7 lg:py-28">
+          <div className="mx-auto max-w-[1320px]">
+            <div className="grid gap-10 lg:grid-cols-[.82fr_1.18fr] lg:items-end">
+              <div>
+                <p className="text-[10px] font-semibold text-white/50">• Original data-science engine, integrated</p>
+                <h2 className="mt-5 max-w-[560px] text-[42px] font-medium leading-[.98] tracking-[-.06em] sm:text-[58px]">Not a dashboard full of invented numbers.</h2>
+                <p className="mt-6 max-w-[520px] text-[12px] leading-7 text-white/62">The modern workspace now calls the uploaded StuntLytics analytics engine for aggregation, record exploration, correlations, district risk, evidence summaries, and local model inference.</p>
+                <Link href="/data-science" className="mt-8 inline-flex min-h-11 items-center gap-2 rounded-full bg-[#69d9cf] px-5 text-[11px] font-bold text-[#102337] transition hover:-translate-y-0.5">Inspect the engine <ArrowUpRight className="size-3.5" /></Link>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {[
+                  [BarChart3, 'Executive aggregation', 'KPI and monthly trend'],
+                  [MapPinned, 'Regional risk', 'District prevalence bands'],
+                  [Database, 'Record explorer', 'Drill-down and export'],
+                  [Network, 'Correlation review', 'Numeric associations'],
+                  [BrainCircuit, 'Local ML pipeline', '18 original inputs'],
+                  [FlaskConical, 'Evidence insight', 'Data-grounded answers'],
+                ].map(([Icon, title, detail]) => {
+                  const I = Icon as typeof BarChart3
+                  return <div key={String(title)} className="min-h-[150px] rounded-[22px] border border-white/10 bg-white/[.055] p-5 backdrop-blur-sm"><span className="flex size-9 items-center justify-center rounded-full bg-white/10 text-[#77e4d9]"><I className="size-4" /></span><p className="mt-5 text-[12px] font-bold">{String(title)}</p><p className="mt-2 text-[9px] leading-4 text-white/50">{String(detail)}</p></div>
+                })}
               </div>
             </div>
           </div>

@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   Database,
   FileClock,
+  FlaskConical,
   HeartPulse,
   Info,
   LayoutDashboard,
@@ -44,6 +45,7 @@ const navigationGroups = [
   {
     label: 'Decision Support',
     items: [
+      { name: 'Data Science Engine', href: '/data-science', icon: FlaskConical },
       { name: 'Health Insights', href: '/insights', icon: Lightbulb },
       { name: 'Activity & Audit', href: '/activity', icon: FileClock },
       { name: 'Platform', href: '/platform', icon: HeartPulse },

@@ -17,6 +17,8 @@ const nextConfig = {
       './src/**/*.py',
       './utils/**/*.py',
       './app.py',
+      './ds_api/**/*',
+      './scripts/**/*.py',
     ],
   },
 }

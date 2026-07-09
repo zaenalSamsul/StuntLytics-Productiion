@@ -102,7 +102,7 @@ def generate_recommendation(
     try:
         try:
             response = client.models.generate_content(
-                model="models/gemma-3-27b-it",
+                model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite"),
                 contents=prompt,
                 config={
                     "temperature": 0.25,
@@ -112,7 +112,7 @@ def generate_recommendation(
         except TypeError:
             # Fallback untuk versi SDK berbeda
             response = client.models.generate_content(
-                model="models/gemma-3-27b-it",
+                model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite"),
                 contents=prompt,
             )
         return response.text

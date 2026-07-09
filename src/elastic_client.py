@@ -78,7 +78,7 @@ def build_query(filters: Dict[str, Any]) -> Dict[str, Any]:
     if filters.get("date_from") or filters.get("date_to"):
         must.append(_date_range("Tanggal", filters.get("date_from"), filters.get("date_to")))
 
-    field_w = filters.get("wilayah_field") or "Wilayah"
+    field_w = filters.get("wilayah_field") or "nama_kabupaten_kota"
     field_k = filters.get("kecamatan_field") or "Kecamatan"
 
     if filters.get("wilayah"):
